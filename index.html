@@ -5,7 +5,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="EllePimpTaFood">
-<meta name="theme-color" content="#fdf8ea">
+<meta name="theme-color" content="#fbf6f2">
 <title>EllePimpTaFood</title>
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -283,6 +283,47 @@
   .dur .seg button { padding: 6px 12px; font-size: 13px; white-space: nowrap; flex: 0 0 auto; }
   .wtabs.one { grid-template-columns: 1fr; }
 
+  /* ===== DA « Doux Pastel » reprise de l'appli Courses & Repas ===== */
+  :root, :root[data-theme="dark"] { --bg: #fbf6f2; --app-bg: #fbf6f2; --surface: #ffffff; --ink: #58291b; --muted: #b0603e;
+      --line: #f6ddcf; --accent: #a54826; --accent-soft: #fbe3d8; --accent-ink: #863a20;
+      --sage: #4f7a55; --sage-soft: #e3efe2; --amber-soft: #fdf2ed; --amber-ink: #9c4a30;
+      --frame: #58291b; --shadow: 0 6px 20px -8px rgba(165,72,38,.22); color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #fbf6f2; --app-bg: #fbf6f2; --surface: #ffffff; --ink: #58291b; --muted: #b0603e;
+      --line: #f6ddcf; --accent: #a54826; --accent-soft: #fbe3d8; --accent-ink: #863a20;
+      --sage: #4f7a55; --sage-soft: #e3efe2; --amber-soft: #fdf2ed; --amber-ink: #9c4a30;
+      --frame: #58291b; --shadow: 0 6px 20px -8px rgba(165,72,38,.22); color-scheme: light; } }
+  body, button, input { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .display, .h1, .h2, .wlabel { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 700; letter-spacing: -.01em; }
+  .card, .gcard { border: 0; border-radius: 2rem; box-shadow: 0 6px 20px -8px rgba(165,72,38,.22), 0 0 0 1px rgba(246,221,207,.7); }
+  .gcard { border-radius: 1.4rem; padding: 12px 14px; }
+  .list { border: 0; border-radius: 1.4rem; box-shadow: 0 6px 20px -8px rgba(165,72,38,.18), 0 0 0 1px rgba(246,221,207,.7); overflow: hidden; }
+  .wk { background: #fdf2ed; border-radius: 1.2rem; }
+  .btn-primary { background: #a54826; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .btn-primary:hover { background: #863a20; }
+  .btn-secondary { background: #fff; border: 0; box-shadow: 0 0 0 1px #edbda4; color: #6d301d; }
+  .pill.p-wait, .p-wait { background: #fbe3d8; color: #9c4a30; }
+  .pill.p-todo, .p-todo { background: #f6ddcf; color: #863a20; }
+  .seg { background: #fff; border-color: #f6ddcf; }
+  .seg button[aria-pressed="true"], .wtabs button[aria-pressed="true"] { background: #a54826; color: #fff; border-color: #a54826; }
+  .wtabs button { border-radius: 1.2rem; }
+  .dish { border-radius: 1.2rem; }
+  .dish[aria-pressed="true"] { border-color: #d1744a; background: #fdf2ed; }
+  .dish[aria-pressed="true"] .tick { background: #a54826; border-color: #a54826; }
+  .formula, .brand h1 { color: #a54826; }
+  .appbar { border-bottom: 0; background: #fbf6f2; padding-bottom: 6px; }
+  .appbar-top { padding-top: 4px; }
+  /* Barre d'onglets en bas, avec pictos */
+  .bottomnav { display: flex; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); background: rgba(255,255,255,.96); border-top: 1px solid #f6ddcf; }
+  .bottomnav button { flex: 1; border: 0; background: none; border-radius: 1rem; padding: 5px 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 500; color: #d1744a; }
+  .bottomnav .ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; line-height: 1; }
+  .bottomnav button[aria-current="true"] { background: #f6ddcf; color: #863a20; font-weight: 700; }
+  .bottomnav button[aria-current="true"] .ic { background: #f0b09a; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .footer { border-top: 1px solid #f6ddcf; }
+  .toast { bottom: 84px; }
+  .content { min-height: 0; }
+  body { margin: 0; }
+  .bottomnav, .footer, .appbar { flex-shrink: 0; }
+
   /* Appli : plein écran sur téléphone, colonne centrée sur ordinateur */
   html, body { height: 100%; }
   body { padding: 0; background: var(--app-bg); }
@@ -464,9 +505,9 @@ function guideHtml(visit) {
 
 // ---------- Vue cliente ----------
 function clientView() {
-  const tabs = [["home", "Accueil"], ["choix", "Plats"], ["courses", "Courses"], ["creneau", "Planning"], ["fiche", "Fiche"]];
-  const bar = `<div class="appbar"><div class="appbar-top"><span class="appname"><img class="logo" src="${LOGO}" alt=""><span class="display">EllePimpTaFood</span></span><span class="who">Axelle</span></div>
-    <nav class="tabs">${tabs.map(([k, l]) => `<button data-go-client="${k}" aria-current="${S.client === k}">${l}</button>`).join("")}</nav></div>`;
+  const tabs = [["home", "Accueil", "🏠"], ["choix", "Plats", "🍽️"], ["courses", "Courses", "🛒"], ["creneau", "Planning", "🗓️"], ["fiche", "Fiche", "🔥"]];
+  const bar = `<div class="appbar"><div class="appbar-top"><span class="appname"><img class="logo" src="${LOGO}" alt=""><span class="display">EllePimpTaFood</span></span><span class="who">Axelle</span></div></div>`;
+  const nav = `<nav class="bottomnav">${tabs.map(([k, l, ic]) => `<button data-go-client="${k}" aria-current="${S.client === k}"><span class="ic">${ic}</span><span class="lb">${l}</span></button>`).join("")}</nav>`;
   let body = "", footer = "";
   const [st, cls] = status();
 
@@ -552,7 +593,7 @@ function clientView() {
         : guideHtml(sel === "past" ? "past" : "current") + `<button class="btn btn-secondary" id="print">Imprimer / enregistrer en PDF</button>`}`;
   }
 
-  return bar + `<div class="content">${body}</div>` + (footer ? `<div class="footer">${footer}</div>` : "");
+  return bar + `<div class="content">${body}</div>` + (footer ? `<div class="footer">${footer}</div>` : "") + nav;
 }
 
 function render() {
