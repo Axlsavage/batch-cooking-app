@@ -331,6 +331,7 @@
   .wk li.todo { padding: 10px 12px; font-size: 14px; border-radius: 12px; border: 1.5px dashed #edbda4; background: #fff; color: #b0603e; }
   .wk li:not(.todo) { font-size: 14.5px; padding: 6px 0 6px 14px; }
   .wk li:not(.todo)::before { top: 6px; }
+  .version { margin: 6px 0 0; text-align: center; font-size: 11px; color: #d1744a; }
 
   /* Appli : plein écran sur téléphone, colonne centrée sur ordinateur */
   html, body { height: 100%; }
@@ -422,6 +423,11 @@ const initial = () => ({
 let S = initial();
 
 const STORE_KEY = "ellepimptafood-v1";
+const APP_VERSION = "v6 · 22/09";
+const STORAGE_OK = (() => {
+  try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
+  catch (e) { return false; }
+})();
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
@@ -557,6 +563,8 @@ function clientView() {
         <p class="small muted" style="margin:0">Tes 6 derniers plats</p>
         <div class="list">${DATA.history.map(id => `<div class="item"><label>${esc(R(id).name)}</label></div>`).join("")}</div>
         <button class="link small" data-toast-old>Revoir la fiche réchauffage →</button>
+        ${STORAGE_OK ? "" : `<div class="banner b-amber">Ce téléphone bloque l'enregistrement : tes choix seront perdus à la fermeture.</div>`}
+        <p class="version">${APP_VERSION} · ${STORAGE_OK ? "enregistrement actif" : "enregistrement bloqué"}</p>
       </section>`;
   }
 
