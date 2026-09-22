@@ -421,6 +421,30 @@ const initial = () => ({
 });
 let S = initial();
 
+const STORE_KEY = "ellepimptafood-v1";
+function save() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      client: S.client, week: S.week, weeks: S.weeks, plans: S.plans,
+      picks: [...S.picks], submitted: S.submitted, validated: S.validated, done: S.done,
+      booked: S.booked, checked: [...S.checked], have: [...S.have], mine: S.mine, ficheVisit: S.ficheVisit,
+    }));
+  } catch (e) { /* stockage indisponible (navigation privée…) : l'appli marche quand même */ }
+}
+function restore() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (!saved) return;
+    Object.assign(S, saved, {
+      picks: new Map((saved.picks || []).filter(([id]) => DATA.recipes[id])),
+      checked: new Set(saved.checked || []),
+      have: new Set(saved.have || []),
+      mine: saved.mine || [],
+    });
+  } catch (e) { /* données illisibles : on repart de zéro */ }
+}
+restore();
+
 const $app = document.getElementById("app");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const R = id => DATA.recipes[id];
@@ -610,13 +634,14 @@ function render() {
   $app.innerHTML = clientView();
   if (render.last === key) { const c = $app.querySelector(".content"); if (c) c.scrollTop = scroll; }
   render.last = key;
+  save();
 }
 
 // ---------- Interactions ----------
 document.addEventListener("click", e => {
   const t = e.target.closest("button");
   if (!t) return;
-  if (t.id === "reset") { S = initial(); return render(); }
+  if (t.id === "reset") { try { localStorage.removeItem(STORE_KEY); } catch (e) {} S = initial(); return render(); }
   if (t.dataset.goClient) { S.client = t.dataset.goClient; return render(); }
   if (t.dataset.week) { S.week = +t.dataset.week; return render(); }
   if (t.dataset.fiche) { S.ficheVisit = t.dataset.fiche; return render(); }
@@ -668,7 +693,7 @@ document.addEventListener("change", e => {
     return render();
   }
 });
-document.addEventListener("input", e => { if (e.target.id === "wbaby-note") plan(S.week).babyNote = e.target.value; });
+document.addEventListener("input", e => { if (e.target.id === "wbaby-note") { plan(S.week).babyNote = e.target.value; save(); } });
 document.addEventListener("keydown", e => { if (e.key === "Enter" && (e.target.id === "add-name" || e.target.id === "add-qty")) document.getElementById("add-item").click(); });
 
 render();
