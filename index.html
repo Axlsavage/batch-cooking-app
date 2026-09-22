@@ -324,6 +324,14 @@
   body { margin: 0; }
   .bottomnav, .footer, .appbar { flex-shrink: 0; }
 
+  /* Accueil : cases des plats plus grandes */
+  .wk { padding: 12px 14px; }
+  .wk-title { font-size: 14.5px; }
+  .wk ul { gap: 6px; }
+  .wk li.todo { padding: 10px 12px; font-size: 14px; border-radius: 12px; border: 1.5px dashed #edbda4; background: #fff; color: #b0603e; }
+  .wk li:not(.todo) { font-size: 14.5px; padding: 6px 0 6px 14px; }
+  .wk li:not(.todo)::before { top: 6px; }
+
   /* Appli : plein écran sur téléphone, colonne centrée sur ordinateur */
   html, body { height: 100%; }
   body { padding: 0; background: var(--app-bg); }
