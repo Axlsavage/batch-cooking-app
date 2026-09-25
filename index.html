@@ -334,6 +334,13 @@
   .version { margin: 6px 0 0; text-align: center; font-size: 11px; color: #d1744a; }
   .cal-month { margin: 10px 0 2px; font-size: 12px; font-weight: 700; text-transform: capitalize; color: #a54826; }
   .cal-month:first-child { margin-top: 0; }
+  .vsel { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+  .vsel button { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 11px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .vsel button[aria-pressed="true"] { background: #a54826; border-color: #a54826; color: #fff; }
+  .vinfo { display: grid; gap: 1px; }
+  .vday { font-size: 14.5px; font-weight: 600; }
+  .slot-act { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; flex-shrink: 0; }
+  .slot-act .link { font-size: 12px; }
 
   /* Appli : plein écran sur téléphone, colonne centrée sur ordinateur */
   html, body { height: 100%; }
@@ -447,8 +454,6 @@ const CATS = [
   { id: "salades", label: "Salades" },
   { id: "sucre", label: "Sucré / petit-déjeuner" },
 ];
-// Emeline repasse le lundi 28 septembre, pour les semaines du 28/09 et du 05/10.
-const WEEK_STARTS = ["28 septembre", "5 octobre", "12 octobre"];
 // Calendrier d'Emeline : OFF le mercredi, le samedi et le dimanche ; jours déjà pris par d'autres clients.
 const TODAY = new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, heure locale
 const CAL_WEEKS = 8;
@@ -471,18 +476,62 @@ const CAL = (() => {
 })();
 const dayInfo = iso => { const dt = new Date(iso + "T12:00:00Z"); return { wd: dt.getUTCDay(), d: dt.getUTCDate(), m: dt.getUTCMonth(), y: dt.getUTCFullYear() }; };
 const dayName = iso => { const { wd, d, m } = dayInfo(iso); return `${JOURS[wd]} ${d === 1 ? "1er" : d} ${MOIS[m]}`; };
-const initial = () => ({
-  view: "client", client: "home", cook: "sessions", week: 1,
-  weeks: 2, perWeek: 3, servings: 4,
-  plans: [1, 2, 3].map(() => ({ dishes: 3, sweet: false, baby: false, babyNote: "", shopping: false })),
-  picks: new Map(), submitted: false, validated: false, done: false,
-  booked: "2026-09-28", checked: new Set(), have: new Set(), mine: [], ficheVisit: "current",
-  eatFirst: new Set(), note: "Garde-toi max 4 plats au frigo, congèle le reste selon tes envies !\nIl faudra cuire du riz ou des pâtes pour les plats mijotés, je t'ai tout noté.",
-});
+const MOIS_AB = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+const addDays = (iso, n) => new Date(new Date(iso + "T12:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+const frDay = iso => { const { d, m } = dayInfo(iso); return `${d === 1 ? "1er" : d} ${MOIS[m]}`; };
+const frShort = iso => { const { d, m } = dayInfo(iso); return `${d === 1 ? "1er" : d} ${MOIS_AB[m]}`; };
+
+// Une venue = un dossier : sa date, ses semaines, ses plats, son panier, sa fiche.
+// Rien ne s'efface quand on passe à la suivante : chaque venue garde les siens.
+let venueSeq = 0;
+function newVenue(date) {
+  return {
+    id: `v${++venueSeq}-${Date.now().toString(36)}`, date: date || null, weeks: 2,
+    plans: [1, 2, 3].map(() => ({ dishes: 3, sweet: false, baby: false, babyNote: "", shopping: false })),
+    picks: new Map(), submitted: false, validated: false, done: false,
+    checked: new Set(), have: new Set(), mine: [],
+  };
+}
+// Les listes de courses préparées par Emeline, rangées par date de venue.
+const LISTS = { "2026-09-28": { title: EMELINE_LIST_TITLE, items: EMELINE_LIST } };
+
+const initial = () => {
+  const past = newVenue("2026-09-14");
+  past.submitted = past.validated = past.done = true;
+  (DATA.history || []).forEach((id, i) => past.picks.set(id, i < 3 ? 1 : 2));
+  const next = newVenue("2026-09-28");
+  return {
+    view: "client", client: "home", cook: "sessions", week: 1, servings: 4,
+    venues: [past, next], current: next.id, ficheVisit: "", move: null,
+    eatFirst: new Set(), note: "Garde-toi max 4 plats au frigo, congèle le reste selon tes envies !\nIl faudra cuire du riz ou des pâtes pour les plats mijotés, je t'ai tout noté.",
+  };
+};
 let S = initial();
 
+// La venue affichée : celle qu'on prépare, sauf si on en a choisi une autre.
+const V = () => S.venues.find(v => v.id === S.current) || S.venues[S.venues.length - 1];
+const venueById = id => S.venues.find(v => v.id === id);
+const venueList = v => LISTS[v.date] || null;
+const sortVenues = () => S.venues.sort((a, b) => (a.date || "9999-99-99").localeCompare(b.date || "9999-99-99"));
+const upcoming = () => S.venues.filter(v => !v.date || v.date >= TODAY);
+const pastVenues = () => S.venues.filter(v => v.date && v.date < TODAY);
+const defaultVenue = () => (upcoming()[0] || S.venues[S.venues.length - 1]).id;
+// Il y a toujours une venue à préparer : quand la dernière est passée, une nouvelle attend sa date.
+function ensureUpcoming() { if (!upcoming().length) { S.venues.push(newVenue(null)); sortVenues(); } }
+const weekStart = (v, i) => v.date ? addDays(v.date, i * 7) : null;
+const venueLabel = v => v.date ? frShort(v.date) : "sans date";
+const venueTitle = v => v.date ? `Venue du ${dayName(v.date)}` : "Venue à réserver";
+const ficheLabel = v => {
+  if (!v.date) return "Venue à réserver";
+  const starts = Array.from({ length: v.weeks }, (_, i) => weekStart(v, i));
+  const sameMonth = starts.every(p => dayInfo(p).m === dayInfo(starts[0]).m);
+  // Même mois : « Sem. du 14 & 21 sept. » ; à cheval : « Sem. du 28 sept. & 5 oct. »
+  return "Sem. du " + starts.map((p, i) => sameMonth && i < starts.length - 1 ? (dayInfo(p).d === 1 ? "1er" : dayInfo(p).d) : frShort(p)).join(" & ");
+};
+const isMine = iso => S.venues.some(v => v.date === iso);
+
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v10 · 25/09";
+const APP_VERSION = "v11 · 25/09";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -490,52 +539,73 @@ const STORAGE_OK = (() => {
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      client: S.client, week: S.week, weeks: S.weeks, plans: S.plans,
-      picks: [...S.picks], submitted: S.submitted, validated: S.validated, done: S.done,
-      booked: S.booked, checked: [...S.checked], have: [...S.have], mine: S.mine, ficheVisit: S.ficheVisit,
+      v: 2, client: S.client, week: S.week, current: S.current, ficheVisit: S.ficheVisit,
+      venues: S.venues.map(v => ({
+        id: v.id, date: v.date, weeks: v.weeks, plans: v.plans, picks: [...v.picks],
+        submitted: v.submitted, validated: v.validated, done: v.done,
+        checked: [...v.checked], have: [...v.have], mine: v.mine,
+      })),
     }));
   } catch (e) { /* stockage indisponible (navigation privée…) : l'appli marche quand même */ }
 }
+// Anciens identifiants (r0, r1…) convertis vers les nouveaux.
+const migPicks = p => new Map((p || []).map(([id, w]) => [DATA.legacy?.[id] ?? id, w]).filter(([id]) => DATA.recipes[id]));
+const migVenue = o => Object.assign(newVenue(o.date), o, {
+  picks: migPicks(o.picks), checked: new Set(o.checked || []), have: new Set(o.have || []), mine: o.mine || [],
+});
 function restore() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
     if (!saved) return;
-    Object.assign(S, saved, {
-      // Anciens identifiants (r0, r1…) convertis vers les nouveaux.
-      picks: new Map((saved.picks || []).map(([id, w]) => [DATA.legacy?.[id] ?? id, w]).filter(([id]) => DATA.recipes[id])),
-      checked: new Set(saved.checked || []),
-      have: new Set(saved.have || []),
-      mine: saved.mine || [],
-    });
+    if (saved.v === 2 && (saved.venues || []).length) {
+      S.venues = saved.venues.map(migVenue);
+    } else if (saved.picks || saved.booked) {
+      // Ancien format (une seule venue à plat) : tout part dans la venue réservée.
+      const v = migVenue({ date: saved.booked || "2026-09-28", picks: saved.picks, checked: saved.checked, have: saved.have, mine: saved.mine });
+      v.weeks = saved.weeks || 2;
+      if (saved.plans) v.plans = saved.plans;
+      v.submitted = !!saved.submitted; v.validated = !!saved.validated; v.done = !!saved.done;
+      const past = S.venues[0];
+      S.venues = v.date && v.date <= past.date ? [v] : [past, v];
+    }
+    sortVenues();
+    ensureUpcoming();
+    if (saved.client) S.client = saved.client;
+    if (saved.ficheVisit) S.ficheVisit = saved.ficheVisit;
+    // À l'ouverture on revient toujours sur la prochaine venue à préparer.
+    const cur = venueById(saved.current);
+    S.current = cur && (!cur.date || cur.date >= TODAY) ? cur.id : defaultVenue();
+    S.week = Math.min(saved.week || 1, V().weeks);
   } catch (e) { /* données illisibles : on repart de zéro */ }
 }
 restore();
+ensureUpcoming();
 
 const $app = document.getElementById("app");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const R = id => DATA.recipes[id];
-const weeks = () => WEEK_STARTS.slice(0, S.weeks).map(d => `Semaine du ${d}`);
-const ids = () => [...S.picks.keys()];
-const inWeek = (w, sweet) => ids().filter(id => S.picks.get(id) === w && (sweet ? R(id).category === "sucre" : SAVORY.includes(R(id).category)));
-const plan = w => S.plans[w - 1];
+const weeks = () => Array.from({ length: V().weeks }, (_, i) => V().date ? `Semaine du ${frDay(weekStart(V(), i))}` : (i === 0 ? "1re semaine" : "2e semaine"));
+const ids = () => [...V().picks.keys()];
+const inWeek = (w, sweet) => ids().filter(id => V().picks.get(id) === w && (sweet ? R(id).category === "sucre" : SAVORY.includes(R(id).category)));
+const plan = w => V().plans[w - 1];
 const weekDone = w => inWeek(w, false).length === plan(w).dishes && inWeek(w, true).length === (plan(w).sweet ? 2 : 0);
 const anyShopping = () => weeks().some((_, i) => plan(i + 1).shopping);
 const shoppingWeeks = () => weeks().filter((_, i) => plan(i + 1).shopping).map(w => w.toLowerCase()).join(", ");
 const planLabel = w => [`${plan(w).dishes} plats`, plan(w).sweet && "2 sucrés", plan(w).baby && "pots bébé", plan(w).shopping && "courses"].filter(Boolean).join(" + ");
 const totalDishes = () => weeks().reduce((n, _, i) => n + plan(i + 1).dishes, 0);
 const complete = () => weeks().every((_, i) => weekDone(i + 1));
-const formula = () => `${S.perWeek} plats / semaine · base ${S.servings} personnes = ${S.perWeek * S.servings} repas`;
-const status = () => S.done ? ["Réalisée", "p-ok"] : S.validated ? ["Liste validée", "p-ok"] : S.submitted ? ["Choix faits", "p-todo"] : ["À choisir", "p-wait"];
+const formula = () => `${plan(1).dishes} plats / semaine · base ${S.servings} personnes = ${plan(1).dishes * S.servings} repas`;
+const status = () => V().done ? ["Réalisée", "p-ok"] : V().validated ? ["Liste validée", "p-ok"] : V().submitted ? ["Choix faits", "p-todo"] : ["À choisir", "p-wait"];
 const slotLabel = iso => iso ? `${dayName(iso).replace(/^./, c => c.toUpperCase())}, journée entière (9 h – 18 h)` : "";
 function halfStatus(iso, h) {
-  if (iso === S.booked) return "mine";
+  if (isMine(iso)) return "mine";
   if (TAKEN[iso]?.[h]) return "taken";
   return "free";
 }
 function dayStatus(iso) {
   if (iso < TODAY) return "past";
   if (OFF_DAYS.includes(dayInfo(iso).wd)) return "off";
-  if (iso === S.booked) return "mine";
+  if (isMine(iso)) return "mine";
   if (iso === TODAY) return "past";
   const a = halfStatus(iso, "am"), p = halfStatus(iso, "pm");
   if (a === "free" && p === "free") return "free";
@@ -572,14 +642,21 @@ function calendarHtml(forCook) {
       if (st === "off") return `<div class="day off" aria-disabled="true">${num}<span class="offlab">OFF</span></div>`;
       if (st === "past") return `<div class="day past">${num}</div>`;
       const inner = `${num}<span class="halves">${half(iso, "am")}${half(iso, "pm")}</span>`;
-      return st === "free" && !forCook && !S.done ? `<button class="day free" data-day="${iso}" title="Réserver la journée du ${dayName(iso)}">${inner}</button>` : `<div class="day ${st}">${inner}</div>`;
+      return st === "free" && !forCook ? `<button class="day free" data-day="${iso}" title="Réserver la journée du ${dayName(iso)}">${inner}</button>` : `<div class="day ${st}">${inner}</div>`;
     }).join("")}</div>`; }).join("")}
     <div class="legend"><span><i class="lg mine"></i>${forCook ? "Axelle" : "Ta venue"}</span><span><i class="lg free"></i>Libre</span><span><i class="lg taken"></i>Déjà réservé</span><span><i class="lg off"></i>OFF</span></div></div>`;
 }
 
+// Les venues à venir, pour passer de l'une à l'autre quand on s'avance.
+function venueTabs() {
+  const up = upcoming();
+  if (up.length < 2) return "";
+  return `<div class="vsel"><span>Venue :</span>${up.map(v => `<button data-venue="${v.id}" aria-pressed="${v.id === S.current}">${venueLabel(v)}</button>`).join("")}</div>`;
+}
+
 function weekBlocks(emptyText) {
   return `<div class="weeks">${weeks().map((label, i) => {
-    const w = i + 1, dishes = ids().filter(id => S.picks.get(id) === w);
+    const w = i + 1, dishes = ids().filter(id => V().picks.get(id) === w);
     const missing = Math.max(0, plan(w).dishes - inWeek(w, false).length);
     return `<div class="wk"><p class="wk-title">${label}</p><p class="wk-plan">${planLabel(w)}</p><ul>${dishes.map(id => `<li>${esc(R(id).name)}</li>`).join("")}${Array.from({ length: missing }, () => `<li class="todo">${emptyText}</li>`).join("")}</ul></div>`;
   }).join("")}</div>`;
@@ -594,9 +671,8 @@ function parseReheat(text) {
     return { method: m.length ? m.slice(0, 2).join(" / ") : "Conseil", text: t.charAt(0).toUpperCase() + t.slice(1) };
   });
 }
-function guideHtml(visit) {
-  const past = visit === "past";
-  const dishes = past ? DATA.history.map((id, i) => ({ id, week: i < 3 ? 1 : 2 })) : ids().map(id => ({ id, week: S.picks.get(id) }));
+function guideHtml(v) {
+  const dishes = [...v.picks.keys()].map(id => ({ id }));
   return `<div class="gweek">${dishes.map(x => { const steps = parseReheat(R(x.id).reheat); return `<div class="gcard"><b>${esc(R(x.id).name)}</b>
         ${steps.length ? `<dl>${steps.map(st => `<div><dt>${st.method}</dt><dd>${esc(st.text)}</dd></div>`).join("")}</dl>` : `<p class="small muted" style="margin:0">Consignes à venir : Emeline les ajoute dans sa recette.</p>`}</div>`; }).join("")}</div>
     <details class="card"><summary class="h2">Congélation et décongélation</summary><ul class="glist"><li>Se conservent idéalement 3 à 6 mois.</li><li>Pour décongeler : sortir la veille, 12 à 24 h au réfrigérateur.</li><li>Ne pas décongeler à température ambiante.</li></ul></details>
@@ -613,32 +689,37 @@ function clientView() {
   const [st, cls] = status();
 
   if (S.client === "home") {
-    const next = !S.submitted ? ["choix", "Choisir mes plats"] : !S.booked ? ["creneau", "Réserver le passage d'Emeline"] : S.done ? ["fiche", "Voir ma fiche réchauffage"] : ["courses", "Voir ma liste de courses"];
+    const hist = pastVenues()[pastVenues().length - 1];
+    const next = !V().submitted ? ["choix", "Choisir mes plats"] : !V().date ? ["creneau", "Réserver le passage d'Emeline"] : V().done ? ["fiche", "Voir ma fiche réchauffage"] : ["courses", "Voir ma liste de courses"];
     body = `<div class="hello"><img class="logo logo-md" src="${LOGO}" alt="Emeline"><div><h1 class="h1">Bonjour Axelle</h1><p class="small muted" style="margin:2px 0 0">Les menus d'Emeline, cuisinés chez toi</p></div></div>
+      ${venueTabs()}
       <section class="card home">
         <div class="row"><span class="h2">Menu d'été ☀️</span><span class="pill ${cls}">${st}</span></div>
         ${weekBlocks("À choisir")}
-        <p class="small passage">${S.booked ? `Passage d'Emeline : <b>${dayName(S.booked)}</b>` : `<span class="muted">Passage d'Emeline à réserver</span>`}</p>
+        <p class="small passage">${V().date ? `Passage d'Emeline : <b>${dayName(V().date)}</b>` : `<span class="muted">Passage d'Emeline à réserver</span>`}</p>
         <button class="btn btn-primary btn-block" data-go-client="${next[0]}">${next[1]}</button>
       </section>
+      ${hist ? `<section class="history">
+        <div class="row"><span class="h2">Historique</span><span class="small muted">${venueTitle(hist)}</span></div>
+        <p class="small muted" style="margin:0">Tes ${hist.picks.size} derniers plats</p>
+        <div class="list">${[...hist.picks.keys()].map(id => `<div class="item"><label>${esc(R(id).name)}</label></div>`).join("")}</div>
+        <button class="link small" data-fiche-go="${hist.id}">Revoir la fiche réchauffage →</button>
+      </section>` : ""}
       <section class="history">
-        <div class="row"><span class="h2">Historique</span><span class="small muted">Venue du 14 septembre</span></div>
-        <p class="small muted" style="margin:0">Tes 6 derniers plats</p>
-        <div class="list">${DATA.history.map(id => `<div class="item"><label>${esc(R(id).name)}</label></div>`).join("")}</div>
-        <button class="link small" data-toast-old>Revoir la fiche réchauffage →</button>
         ${STORAGE_OK ? "" : `<div class="banner b-amber">Ce téléphone bloque l'enregistrement : tes choix seront perdus à la fermeture.</div>`}
         <p class="version">${APP_VERSION} · ${STORAGE_OK ? "enregistrement actif" : "enregistrement bloqué"}</p>
       </section>`;
   }
 
   if (S.client === "choix") {
-    const locked = S.validated;
+    const locked = V().validated;
     const w = S.week, p = plan(w);
     const savFull = inWeek(w, false).length >= p.dishes, swFull = inWeek(w, true).length >= 2;
-    body = `<div class="step-title">${dot(1, S.submitted)}<h1 class="h1" style="font-size:21px">Je choisis mes plats</h1></div>
+    body = `<div class="step-title">${dot(1, V().submitted)}<h1 class="h1" style="font-size:21px">Je choisis mes plats</h1></div>
+      ${venueTabs()}
       ${locked ? `<div class="banner b-sage">Emeline a validé la liste : pour changer, écris-lui.</div>` : ""}
-      ${locked ? "" : `<div class="row dur"><span class="wlabel">Emeline cuisine pour :</span><div class="seg"><button data-dur="1" aria-pressed="${S.weeks === 1}">1 semaine</button><button data-dur="2" aria-pressed="${S.weeks === 2}">15 jours</button></div></div>`}
-      <div class="wtabs ${S.weeks === 1 ? "one" : ""}">${weeks().map((label, i) => `<button data-week="${i + 1}" aria-pressed="${w === i + 1}"><b>${label}</b><span>${inWeek(i + 1, false).length}/${plan(i + 1).dishes} plats${weekDone(i + 1) ? " ✓" : ""} · ${planLabel(i + 1)}</span></button>`).join("")}</div>
+      ${locked ? "" : `<div class="row dur"><span class="wlabel">Emeline cuisine pour :</span><div class="seg"><button data-dur="1" aria-pressed="${V().weeks === 1}">1 semaine</button><button data-dur="2" aria-pressed="${V().weeks === 2}">15 jours</button></div></div>`}
+      <div class="wtabs ${V().weeks === 1 ? "one" : ""}">${weeks().map((label, i) => `<button data-week="${i + 1}" aria-pressed="${w === i + 1}"><b>${label}</b><span>${inWeek(i + 1, false).length}/${plan(i + 1).dishes} plats${weekDone(i + 1) ? " ✓" : ""} · ${planLabel(i + 1)}</span></button>`).join("")}</div>
       ${locked ? "" : `<div class="card wset"><span class="h2" style="font-size:15px">Réglages de la ${weeks()[w - 1].toLowerCase()}</span>
         <div class="row"><span class="wlabel">Nombre de plats :</span><div class="seg">${[3, 4, 5].map(n => `<button data-wdishes="${n}" aria-pressed="${p.dishes === n}">${n}</button>`).join("")}</div></div>
         <label class="opt wopt"><input type="checkbox" data-wsweet ${p.sweet ? "checked" : ""}><span>2 plats sucrés cette semaine${p.sweet ? ` <span class="muted small">(${inWeek(w, true).length}/2 choisis plus bas)</span>` : ""}</span></label>
@@ -651,50 +732,60 @@ function clientView() {
         return `<section><div class="cat-head"><span class="h2">${c.label}</span></div>${c.id === "viande" || c.id === "poisson" ? `<p class="vg">Possibilité de faire les plats façon VG</p>` : ""}
           ${sweet ? `<p class="small muted" style="margin:0 0 6px">En option : 2 recettes par semaine.</p>` : ""}
           ${list.map(id => {
-            const pw = S.picks.get(id), on = pw === w, elsewhere = pw && !on;
+            const pw = V().picks.get(id), on = pw === w, elsewhere = pw && !on;
             const blocked = sweet ? swFull : savFull;
             return `<button class="dish" data-dish="${id}" aria-pressed="${on}" ${locked || elsewhere || (!on && blocked) ? "disabled" : ""}><span class="tick">${on ? "✓" : ""}</span><span><b>${esc(R(id).name)}</b>${R(id).description ? `<i>${esc(R(id).description)}</i>` : ""}${elsewhere ? `<i class="elsewhere">Prévu : ${weeks()[pw - 1]}</i>` : ""}</span></button>`;
           }).join("")}</section>`;
       }).join("")}`;
+    if (!locked && V().picks.size) body += `<p class="small" style="text-align:center"><button class="link small" id="reset-picks">Recommencer mes choix pour cette venue</button></p>`;
     if (!locked) footer = `<div class="row small">${weeks().map((l, i) => `<span class="count ${weekDone(i + 1) ? "full" : ""}">${l.replace("Semaine du ", "Sem. du ")} : ${inWeek(i + 1, false).length}/${plan(i + 1).dishes}</span>`).join("")}</div>
-      <button class="btn btn-primary btn-block" id="submit" ${complete() ? "" : "disabled"}>${S.submitted ? "Mettre à jour mon choix" : "Valider mon choix"}</button>`;
+      <button class="btn btn-primary btn-block" id="submit" ${complete() ? "" : "disabled"}>${V().submitted ? "Mettre à jour mon choix" : "Valider mon choix"}</button>`;
   }
 
   if (S.client === "courses") {
     {
-      const list = [...EMELINE_LIST, ...S.mine.map(m => ({ name: m.name, q: null, unit: m.qty, aisle: "Mes ajouts", mine: m.id }))];
+      const L = venueList(V());
+      const list = [...(L ? L.items : []), ...V().mine.map(m => ({ name: m.name, q: null, unit: m.qty, aisle: "Mes ajouts", mine: m.id }))];
       const aisles = [...new Set([...list.map(i => i.aisle), "Mes ajouts"])];
       const key = i => i.name + i.unit;
-      const bought = list.filter(i => S.checked.has(key(i))).length, home = list.filter(i => S.have.has(key(i))).length;
+      const bought = list.filter(i => V().checked.has(key(i))).length, home = list.filter(i => V().have.has(key(i))).length;
       const left = list.length - bought - home;
-      body = `<div class="step-title">${dot(2, S.validated)}<h1 class="h1" style="font-size:21px">Je fais les courses</h1></div>
+      body = `<div class="step-title">${dot(2, V().validated)}<h1 class="h1" style="font-size:21px">Je fais les courses</h1></div>
         ${anyShopping() ? `<div class="banner b-sage">Emeline fait les courses pour : ${shoppingWeeks()}.</div>` : ""}
-        <div class="banner b-sage">${EMELINE_LIST_TITLE} ✓</div>
+        ${venueTabs()}
+        <div class="banner ${L ? "b-sage" : "b-amber"}">${L ? `${L.title} ✓` : `Liste d'Emeline en attente pour ta ${venueTitle(V()).toLowerCase()}. « Mes ajouts » fonctionne déjà.`}</div>
         <div class="row small muted"><span><b style="color:var(--ink)">${left} à acheter</b> · ${bought} acheté${bought > 1 ? "s" : ""} · ${home} déjà là</span><button class="btn btn-secondary" style="padding:7px 12px" id="share">Partager</button></div>
-        ${bought + home > 0 || S.mine.length ? `<button class="link small" id="empty-cart">Vider mon panier (décocher tout)</button>` : ""}
+        ${bought + home > 0 || V().mine.length ? `<button class="link small" id="empty-cart">Vider mon panier (décocher tout)</button>` : ""}
         <p class="small muted" style="margin:0">Coche quand tu achètes. « J'ai déjà » barre ce que tu as à la maison.</p>
         ${aisles.map(a => { const rows = list.filter(i => i.aisle === a); return `<div><div class="aisle">${a}</div>${rows.length ? `<div class="list">${rows.map(i => {
-          const k = key(i), c = S.checked.has(k), h = S.have.has(k), id = "c-" + k.replace(/[^a-z0-9]/gi, "");
+          const k = key(i), c = V().checked.has(k), h = V().have.has(k), id = "c-" + k.replace(/[^a-z0-9]/gi, "");
           return `<div class="item ${c ? "checked" : ""} ${h ? "athome" : ""}"><input type="checkbox" id="${id}" data-check="${esc(k)}" ${c ? "checked" : ""} ${h ? "disabled" : ""}><label for="${id}">${esc(i.name)}${h ? `<span class="tagline">déjà à la maison</span>` : ""}</label><span class="qty">${fmt(i.q, i.unit)}</span>${c ? "" : `<button class="have" data-have="${esc(k)}">${h ? "Annuler" : "J'ai déjà"}</button>`}${i.mine ? `<button class="rm" data-rm="${i.mine}" aria-label="Retirer ${esc(i.name)}">✕</button>` : ""}</div>`;
         }).join("")}</div>` : ""}${a === "Mes ajouts" ? `<div class="addrow"><input id="add-name" placeholder="ex. Café, lessive, yaourts…" aria-label="Article à ajouter"><input id="add-qty" placeholder="Qté" aria-label="Quantité"><button class="btn btn-secondary" style="padding:8px 12px" id="add-item">Ajouter</button></div>` : ""}</div>`; }).join("")}`;
     }
   }
 
   if (S.client === "creneau") {
-    body = `<div class="step-title">${dot(3, !!S.booked)}<h1 class="h1" style="font-size:21px">Je réserve mon passage</h1></div>
-      ${S.booked ? `<div class="slot booked"><span><span class="small" style="color:var(--sage)">Ta venue est réservée</span><br><span class="day">${slotLabel(S.booked)}</span></span>${S.done ? "" : `<button class="btn btn-wa" style="padding:7px 12px" id="wa-client">${WA_ICON} Prévenir</button>`}</div>` : ""}
+    const mv = S.move ? venueById(S.move) : null;
+    const mine = upcoming().filter(v => v.date);
+    body = `<div class="step-title">${dot(3, !!V().date)}<h1 class="h1" style="font-size:21px">Je réserve mon passage</h1></div>
+      ${mv ? `<div class="banner b-amber">Choisis la nouvelle date pour la ${venueTitle(mv).toLowerCase()}. <button class="link small" id="move-cancel">Annuler</button></div>` : ""}
+      ${mine.map(v => `<div class="slot booked"><span class="vinfo"><b class="vday">${dayName(v.date).replace(/^./, c => c.toUpperCase())}</b><span class="small" style="color:var(--sage)">Journée entière · ${v.picks.size ? `${v.picks.size} plats choisis` : "plats à choisir"}</span></span>
+        <span class="slot-act"><button class="link small" data-movev="${v.id}">Déplacer</button><button class="link small" data-cancelv="${v.id}">Annuler</button></span></div>`).join("")}
+      <p class="small muted" style="margin:0">Clique un jour libre pour ajouter une venue.</p>
       ${calendarHtml(false)}`;
   }
 
   if (S.client === "fiche") {
-    const visits = S.done
-      ? [["current", "Sem. du 28 sept. & 5 oct.", "En cours"], ["past", "Sem. du 14 & 21 sept.", "Précédente"]]
-      : [["past", "Sem. du 14 & 21 sept.", "En cours"], ["next", "Sem. du 28 sept. & 5 oct.", "À venir"]];
-    const sel = visits.some(v => v[0] === S.ficheVisit) ? S.ficheVisit : visits[0][0];
+    const lastDone = pastVenues().filter(v => v.done).slice(-1)[0];
+    // La fiche des plats du moment d'abord, puis les venues à venir, puis les plus anciennes.
+    const ordered = [...new Set([lastDone, ...upcoming(), ...pastVenues().reverse()].filter(Boolean))];
+    const visits = ordered.map(v => [v.id, ficheLabel(v), v.done ? (lastDone && v.id === lastDone.id ? "En cours" : "Précédente") : "À venir"]);
+    const sel = visits.some(v => v[0] === S.ficheVisit) ? S.ficheVisit : (lastDone ? lastDone.id : visits[0][0]);
+    const fv = venueById(sel);
     body = `<div class="hello"><img class="logo logo-md" src="${LOGO}" alt=""><div><h1 class="h1" style="font-size:21px">Mes fiches réchauffage</h1><p class="small muted" style="margin:2px 0 0">Comment réchauffer chaque plat</p></div></div>
-      <div class="wtabs">${visits.map(([k, d, lab]) => `<button data-fiche="${k}" aria-pressed="${sel === k}"><b>${d}</b><span>${lab}</span></button>`).join("")}</div>
-      ${sel === "next" ? `<div class="card"><p style="margin:0">La fiche de tes plats des semaines du 28 septembre et du 5 octobre arrivera ici juste après le passage d'Emeline, lundi 28.</p></div>`
-        : guideHtml(sel === "past" ? "past" : "current") + `<button class="btn btn-secondary" id="print">Imprimer / enregistrer en PDF</button>`}`;
+      <div class="wtabs">${visits.map(([k, dlab, lab]) => `<button data-fiche="${k}" aria-pressed="${sel === k}"><b>${dlab}</b><span>${lab}</span></button>`).join("")}</div>
+      ${fv.done ? guideHtml(fv) + `<button class="btn btn-secondary" id="print">Imprimer / enregistrer en PDF</button>`
+        : `<div class="card"><p style="margin:0">La fiche de tes plats arrivera ici juste après le passage d'Emeline${fv.date ? `, ${dayName(fv.date)}` : ""}.</p></div>`}`;
   }
 
   return bar + `<div class="content">${body}</div>` + (footer ? `<div class="footer">${footer}</div>` : "") + nav;
@@ -717,56 +808,81 @@ document.addEventListener("click", e => {
   if (t.dataset.goClient) { S.client = t.dataset.goClient; return render(); }
   if (t.dataset.week) { S.week = +t.dataset.week; return render(); }
   if (t.dataset.fiche) { S.ficheVisit = t.dataset.fiche; return render(); }
+  if (t.dataset.venue) { S.current = t.dataset.venue; S.week = 1; return render(); }
+  if (t.dataset.ficheGo) { S.client = "fiche"; S.ficheVisit = t.dataset.ficheGo; return render(); }
+  if (t.dataset.movev) { S.move = t.dataset.movev; S.client = "creneau"; return render(); }
+  if (t.id === "move-cancel") { S.move = null; return render(); }
+  if (t.dataset.cancelv) {
+    const v = venueById(t.dataset.cancelv);
+    if (v.picks.size && !confirm(`Annuler la ${venueTitle(v).toLowerCase()} ? Les ${v.picks.size} plats choisis pour cette venue seront perdus.`)) return;
+    S.venues = S.venues.filter(x => x.id !== v.id);
+    if (S.move === v.id) S.move = null;
+    ensureUpcoming(); S.current = defaultVenue(); S.week = 1; render();
+    return toast("Venue annulée ✓", "Le jour redevient libre pour les autres clients, et Emeline est prévenue.");
+  }
+  if (t.id === "reset-picks") {
+    if (!confirm("Recommencer tes choix pour cette venue ? Les plats sélectionnés seront retirés.")) return;
+    V().picks.clear(); V().submitted = false; S.week = 1; render();
+    return toast("Choix remis à zéro ✓", "Tes autres venues et ton panier ne bougent pas.");
+  }
   if (t.dataset.dur) {
-    S.weeks = +t.dataset.dur;
-    if (S.weeks === 1) { for (const [id, w] of [...S.picks]) if (w > 1) S.picks.delete(id); S.week = 1; }
+    V().weeks = +t.dataset.dur;
+    if (V().weeks === 1) { for (const [id, w] of [...V().picks]) if (w > 1) V().picks.delete(id); S.week = 1; }
     return render();
   }
   if (t.dataset.wdishes) {
     const n = +t.dataset.wdishes, extra = inWeek(S.week, false).slice(n);
-    extra.forEach(id => S.picks.delete(id));
+    extra.forEach(id => V().picks.delete(id));
     plan(S.week).dishes = n; return render();
   }
   if (t.dataset.dish) {
     const id = t.dataset.dish;
     if (R(id).category === "sucre") plan(S.week).sweet = true;
-    if (S.picks.get(id) === S.week) S.picks.delete(id); else S.picks.set(id, S.week);
-    if (weekDone(S.week) && S.week < S.weeks && !weekDone(S.week + 1)) { S.week++; render(); return toast(`${weeks()[S.week - 2]} complète ✓`, `On passe à la ${weeks()[S.week - 1].toLowerCase()}.`); }
+    if (V().picks.get(id) === S.week) V().picks.delete(id); else V().picks.set(id, S.week);
+    if (weekDone(S.week) && S.week < V().weeks && !weekDone(S.week + 1)) { S.week++; render(); return toast(`${weeks()[S.week - 2]} complète ✓`, `On passe à la ${weeks()[S.week - 1].toLowerCase()}.`); }
     return render();
   }
   if (t.id === "submit") {
-    const first = !S.submitted;
-    S.submitted = true; S.checked.clear(); S.client = "home"; render();
+    const first = !V().submitted;
+    V().submitted = true; V().checked.clear(); S.client = "home"; render();
     return toast(first ? "Choix envoyé ✓" : "Choix mis à jour ✓", "Emeline reçoit une notification. Tu seras prévenue dès que ta liste de courses sera prête.");
   }
-  if (t.dataset.day) { const moved = !!S.booked; S.booked = t.dataset.day; render(); return toast(moved ? "Venue déplacée ✓" : "Venue réservée ✓", `${slotLabel(S.booked)}. Ce jour apparaît « réservé » pour les autres clients, et Emeline est prévenue.`); }
-  if (t.dataset.have) { const k = t.dataset.have; S.have.has(k) ? S.have.delete(k) : S.have.add(k); return render(); }
-  if (t.dataset.rm) { S.mine = S.mine.filter(m => m.id !== t.dataset.rm); return render(); }
+  if (t.dataset.day) {
+    const iso = t.dataset.day;
+    if (S.move) {
+      const v = venueById(S.move); S.move = null; v.date = iso; sortVenues(); S.current = v.id; render();
+      return toast("Venue déplacée ✓", `${slotLabel(iso)}. Ses plats et son panier la suivent.`);
+    }
+    if (!V().date) { V().date = iso; sortVenues(); render(); return toast("Venue réservée ✓", `${slotLabel(iso)}. Ce jour apparaît « réservé » pour les autres clients, et Emeline est prévenue.`); }
+    S.venues.push(newVenue(iso)); sortVenues(); render();
+    return toast("Nouvelle venue réservée ✓", `${slotLabel(iso)}. Tu prépares toujours ta venue du ${frDay(V().date)} : pour choisir les plats de celle-ci, sélectionne-la en haut de l'onglet Plats.`);
+  }
+  if (t.dataset.have) { const k = t.dataset.have; V().have.has(k) ? V().have.delete(k) : V().have.add(k); return render(); }
+  if (t.dataset.rm) { V().mine = V().mine.filter(m => m.id !== t.dataset.rm); return render(); }
   if (t.id === "add-item") {
     const name = document.getElementById("add-name").value.trim();
     if (!name) return document.getElementById("add-name").focus();
-    S.mine.push({ id: "m" + Date.now(), name, qty: document.getElementById("add-qty").value.trim() || null });
+    V().mine.push({ id: "m" + Date.now(), name, qty: document.getElementById("add-qty").value.trim() || null });
     render(); document.getElementById("add-name")?.focus();
     return toast("Ajouté à ta liste ✓", `${name} — dans « Mes ajouts ». Emeline ne s'en occupe pas, c'est pour toi.`);
   }
   if (t.id === "empty-cart") {
     if (!confirm("Vider ton panier ? Les articles cochés et « J'ai déjà » redeviennent à acheter, et tes ajouts perso sont retirés.")) return;
-    S.checked.clear(); S.have.clear(); S.mine = []; render();
+    V().checked.clear(); V().have.clear(); V().mine = []; render();
     return toast("Panier vidé ✓", "Tes plats et ta réservation, eux, ne bougent pas.");
   }
   if (t.id === "share") return toast("Partage", "Envoie ce qu'il reste à acheter (sans ce qui est coché ou déjà à la maison) par WhatsApp, Notes, SMS…");
   if (t.id === "print") return toast("Impression", "Dans l'appli, ce bouton imprime la fiche ou l'enregistre en PDF.");
-  if (t.hasAttribute("data-toast-old")) { S.client = "fiche"; S.ficheVisit = "past"; return render(); }
-  if (t.id === "wa-client") return toast("Ouvrirait WhatsApp avec :", `Coucou Emeline ! C'est Axelle, j'ai réservé ${slotLabel(S.booked)} 😊`);
+  if (t.id === "wa-client") return toast("Ouvrirait WhatsApp avec :", `Coucou Emeline ! C'est Axelle, j'ai réservé ${slotLabel(V().date)} 😊`);
 });
 document.addEventListener("change", e => {
   const d = e.target.dataset;
-  if (d.check) { e.target.checked ? S.checked.add(d.check) : S.checked.delete(d.check); return render(); }
+  if (d.check) { e.target.checked ? V().checked.add(d.check) : V().checked.delete(d.check); return render(); }
   if ("wbaby" in d) { plan(S.week).baby = e.target.checked; return render(); }
   if ("wshop" in d) { plan(S.week).shopping = e.target.checked; return render(); }
   if ("wsweet" in d) {
     plan(S.week).sweet = e.target.checked;
-    if (!e.target.checked) inWeek(S.week, true).forEach(id => S.picks.delete(id));
+    if (!e.target.checked) inWeek(S.week, true).forEach(id => V().picks.delete(id));
     return render();
   }
 });
