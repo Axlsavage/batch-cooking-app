@@ -531,7 +531,7 @@ const ficheLabel = v => {
 const isMine = iso => S.venues.some(v => v.date === iso);
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v11 · 25/09";
+const APP_VERSION = "v12 · 25/09";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -754,9 +754,7 @@ function clientView() {
         ${anyShopping() ? `<div class="banner b-sage">Emeline fait les courses pour : ${shoppingWeeks()}.</div>` : ""}
         ${venueTabs()}
         <div class="banner ${L ? "b-sage" : "b-amber"}">${L ? `${L.title} ✓` : `Liste d'Emeline en attente pour ta ${venueTitle(V()).toLowerCase()}. « Mes ajouts » fonctionne déjà.`}</div>
-        <div class="row small muted"><span><b style="color:var(--ink)">${left} à acheter</b> · ${bought} acheté${bought > 1 ? "s" : ""} · ${home} déjà là</span><button class="btn btn-secondary" style="padding:7px 12px" id="share">Partager</button></div>
-        ${bought + home > 0 || V().mine.length ? `<button class="link small" id="empty-cart">Vider mon panier (décocher tout)</button>` : ""}
-        <p class="small muted" style="margin:0">Coche quand tu achètes. « J'ai déjà » barre ce que tu as à la maison.</p>
+        <div class="row small muted"><span><b style="color:var(--ink)">${left} à acheter</b> · ${bought} acheté${bought > 1 ? "s" : ""} · ${home} déjà là</span>${bought + home > 0 || V().mine.length ? `<button class="btn btn-secondary" style="padding:8px 14px" id="empty-cart">Vider mon panier</button>` : ""}</div>
         ${aisles.map(a => { const rows = list.filter(i => i.aisle === a); return `<div><div class="aisle">${a}</div>${rows.length ? `<div class="list">${rows.map(i => {
           const k = key(i), c = V().checked.has(k), h = V().have.has(k), id = "c-" + k.replace(/[^a-z0-9]/gi, "");
           return `<div class="item ${c ? "checked" : ""} ${h ? "athome" : ""}"><input type="checkbox" id="${id}" data-check="${esc(k)}" ${c ? "checked" : ""} ${h ? "disabled" : ""}><label for="${id}">${esc(i.name)}${h ? `<span class="tagline">déjà à la maison</span>` : ""}</label><span class="qty">${fmt(i.q, i.unit)}</span>${c ? "" : `<button class="have" data-have="${esc(k)}">${h ? "Annuler" : "J'ai déjà"}</button>`}${i.mine ? `<button class="rm" data-rm="${i.mine}" aria-label="Retirer ${esc(i.name)}">✕</button>` : ""}</div>`;
@@ -867,11 +865,10 @@ document.addEventListener("click", e => {
     return toast("Ajouté à ta liste ✓", `${name} — dans « Mes ajouts ». Emeline ne s'en occupe pas, c'est pour toi.`);
   }
   if (t.id === "empty-cart") {
-    if (!confirm("Vider ton panier ? Les articles cochés et « J'ai déjà » redeviennent à acheter, et tes ajouts perso sont retirés.")) return;
+    if (!confirm("Tes courses sont faites ?\n\nToute la liste redevient à acheter : les articles cochés, ceux marqués « J'ai déjà », et tes ajouts perso sont retirés.\n\nLa liste d'Emeline, tes plats et ta réservation ne bougent pas.")) return;
     V().checked.clear(); V().have.clear(); V().mine = []; render();
-    return toast("Panier vidé ✓", "Tes plats et ta réservation, eux, ne bougent pas.");
+    return toast("Panier vidé ✓", "La liste est repartie à zéro. Tes plats et ta réservation ne bougent pas.");
   }
-  if (t.id === "share") return toast("Partage", "Envoie ce qu'il reste à acheter (sans ce qui est coché ou déjà à la maison) par WhatsApp, Notes, SMS…");
   if (t.id === "print") return toast("Impression", "Dans l'appli, ce bouton imprime la fiche ou l'enregistre en PDF.");
   if (t.id === "wa-client") return toast("Ouvrirait WhatsApp avec :", `Coucou Emeline ! C'est Axelle, j'ai réservé ${slotLabel(V().date)} 😊`);
 });
