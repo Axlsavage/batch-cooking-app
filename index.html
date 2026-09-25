@@ -332,6 +332,8 @@
   .wk li:not(.todo) { font-size: 14.5px; padding: 6px 0 6px 14px; }
   .wk li:not(.todo)::before { top: 6px; }
   .version { margin: 6px 0 0; text-align: center; font-size: 11px; color: #d1744a; }
+  .cal-month { margin: 10px 0 2px; font-size: 12px; font-weight: 700; text-transform: capitalize; color: #a54826; }
+  .cal-month:first-child { margin-top: 0; }
 
   /* Appli : plein écran sur téléphone, colonne centrée sur ordinateur */
   html, body { height: 100%; }
@@ -455,10 +457,12 @@ const TAKEN = {
   "2026-09-22": { am: "Famille Martin", pm: "Sophie L." }, "2026-09-24": { am: "Claire D." }, "2026-09-25": { pm: "Julie R." },
   "2026-09-29": { am: "Famille Martin" }, "2026-10-01": { am: "Sophie L.", pm: "Claire D." }, "2026-10-02": { pm: "Julie R." },
   "2026-10-06": { am: "Famille Martin", pm: "Sophie L." }, "2026-10-08": { am: "Claire D." }, "2026-10-13": { am: "Famille Martin" },
+  "2026-10-15": { pm: "Julie R." }, "2026-10-20": { am: "Sophie L." }, "2026-10-22": { am: "Famille Martin", pm: "Claire D." },
+  "2026-10-27": { pm: "Julie R." }, "2026-11-03": { am: "Famille Martin" }, "2026-11-05": { am: "Sophie L." },
 };
 const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-const CAL = Array.from({ length: 28 }, (_, i) => new Date(Date.UTC(2026, 8, 21 + i)).toISOString().slice(0, 10));
+const CAL = Array.from({ length: 56 }, (_, i) => new Date(Date.UTC(2026, 8, 21 + i)).toISOString().slice(0, 10));
 const dayInfo = iso => { const dt = new Date(iso + "T12:00:00Z"); return { wd: dt.getUTCDay(), d: dt.getUTCDate(), m: dt.getUTCMonth() }; };
 const dayName = iso => { const { wd, d, m } = dayInfo(iso); return `${JOURS[wd]} ${d === 1 ? "1er" : d} ${MOIS[m]}`; };
 const initial = () => ({
@@ -472,7 +476,7 @@ const initial = () => ({
 let S = initial();
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v8 · 25/09";
+const APP_VERSION = "v9 · 25/09";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -545,7 +549,8 @@ const WA_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentCo
 
 
 function calendarHtml(forCook) {
-  const weeks = [0, 1, 2, 3].map(w => CAL.slice(w * 7, w * 7 + 7));
+  const weeks = Array.from({ length: CAL.length / 7 }, (_, w) => CAL.slice(w * 7, w * 7 + 7));
+  let shownMonth = -1;
   const HL = { mine: forCook ? "Axelle" : "Toi", taken: "Réservé", free: "Libre" };
   const half = (iso, h) => {
     const st = halfStatus(iso, h);
@@ -553,14 +558,14 @@ function calendarHtml(forCook) {
     return `<span class="half ${st}" title="${h === "am" ? "Matin" : "Après-midi"} : ${HL[st]}">${label}</span>`;
   };
   return `<div class="cal"><div class="cal-head">${["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(h => `<span>${h}</span>`).join("")}</div>
-    ${weeks.map(week => `<div class="cal-row">${week.map(iso => {
+    ${weeks.map(week => { const m = dayInfo(week[0]).m; const title = m === shownMonth ? "" : `<p class="cal-month">${MOIS[m]}${m < dayInfo(CAL[0]).m ? " 2027" : ""}</p>`; shownMonth = m; return title + `<div class="cal-row">${week.map(iso => {
       const st = dayStatus(iso), { d, m } = dayInfo(iso);
       const num = `<b>${d}${d === 1 ? `<small> ${MOIS[m].slice(0, 3)}</small>` : ""}</b>`;
       if (st === "off") return `<div class="day off" aria-disabled="true">${num}<span class="offlab">OFF</span></div>`;
       if (st === "past") return `<div class="day past">${num}</div>`;
       const inner = `${num}<span class="halves">${half(iso, "am")}${half(iso, "pm")}</span>`;
       return st === "free" && !forCook && !S.done ? `<button class="day free" data-day="${iso}" title="Réserver la journée du ${dayName(iso)}">${inner}</button>` : `<div class="day ${st}">${inner}</div>`;
-    }).join("")}</div>`).join("")}
+    }).join("")}</div>`; }).join("")}
     <div class="legend"><span><i class="lg mine"></i>${forCook ? "Axelle" : "Ta venue"}</span><span><i class="lg free"></i>Libre</span><span><i class="lg taken"></i>Déjà réservé</span><span><i class="lg off"></i>OFF</span></div></div>`;
 }
 
