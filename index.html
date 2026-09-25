@@ -18,7 +18,7 @@
 
   :root {
     --bg: #f4ecd4;
-    --app-bg: #fdf8ea;
+    --app-bg: #fbf6f2;
     --surface: #ffffff;
     --ink: #2f2f33;
     --muted: #7b7263;
@@ -450,7 +450,8 @@ const CATS = [
 // Emeline repasse le lundi 28 septembre, pour les semaines du 28/09 et du 05/10.
 const WEEK_STARTS = ["28 septembre", "5 octobre", "12 octobre"];
 // Calendrier d'Emeline : OFF le mercredi, le samedi et le dimanche ; jours déjà pris par d'autres clients.
-const TODAY = "2026-09-21";
+const TODAY = new Date().toLocaleDateString("sv-SE"); // AAAA-MM-JJ, heure locale
+const CAL_WEEKS = 8;
 const OFF_DAYS = [0, 3, 6];
 // Demi-journées déjà prises par ses autres clients (une venue d'une semaine = une demi-journée).
 const TAKEN = {
@@ -462,8 +463,13 @@ const TAKEN = {
 };
 const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-const CAL = Array.from({ length: 56 }, (_, i) => new Date(Date.UTC(2026, 8, 21 + i)).toISOString().slice(0, 10));
-const dayInfo = iso => { const dt = new Date(iso + "T12:00:00Z"); return { wd: dt.getUTCDay(), d: dt.getUTCDate(), m: dt.getUTCMonth() }; };
+const CAL = (() => {
+  const [y, m, day] = TODAY.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, day, 12);
+  const monday = start - ((new Date(start).getUTCDay() + 6) % 7) * 86400000;
+  return Array.from({ length: CAL_WEEKS * 7 }, (_, i) => new Date(monday + i * 86400000).toISOString().slice(0, 10));
+})();
+const dayInfo = iso => { const dt = new Date(iso + "T12:00:00Z"); return { wd: dt.getUTCDay(), d: dt.getUTCDate(), m: dt.getUTCMonth(), y: dt.getUTCFullYear() }; };
 const dayName = iso => { const { wd, d, m } = dayInfo(iso); return `${JOURS[wd]} ${d === 1 ? "1er" : d} ${MOIS[m]}`; };
 const initial = () => ({
   view: "client", client: "home", cook: "sessions", week: 1,
@@ -476,7 +482,7 @@ const initial = () => ({
 let S = initial();
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v9 · 25/09";
+const APP_VERSION = "v10 · 25/09";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -527,9 +533,10 @@ function halfStatus(iso, h) {
   return "free";
 }
 function dayStatus(iso) {
+  if (iso < TODAY) return "past";
   if (OFF_DAYS.includes(dayInfo(iso).wd)) return "off";
-  if (iso <= TODAY) return "past";
   if (iso === S.booked) return "mine";
+  if (iso === TODAY) return "past";
   const a = halfStatus(iso, "am"), p = halfStatus(iso, "pm");
   if (a === "free" && p === "free") return "free";
   if (a === "taken" && p === "taken") return "taken";
@@ -558,7 +565,8 @@ function calendarHtml(forCook) {
     return `<span class="half ${st}" title="${h === "am" ? "Matin" : "Après-midi"} : ${HL[st]}">${label}</span>`;
   };
   return `<div class="cal"><div class="cal-head">${["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(h => `<span>${h}</span>`).join("")}</div>
-    ${weeks.map(week => { const m = dayInfo(week[0]).m; const title = m === shownMonth ? "" : `<p class="cal-month">${MOIS[m]}${m < dayInfo(CAL[0]).m ? " 2027" : ""}</p>`; shownMonth = m; return title + `<div class="cal-row">${week.map(iso => {
+    ${weeks.map(week => { const m = dayInfo(week[0]).m; const { y } = dayInfo(week[0]);
+      const title = m === shownMonth ? "" : `<p class="cal-month">${MOIS[m]}${y === dayInfo(CAL[0]).y ? "" : ` ${y}`}</p>`; shownMonth = m; return title + `<div class="cal-row">${week.map(iso => {
       const st = dayStatus(iso), { d, m } = dayInfo(iso);
       const num = `<b>${d}${d === 1 ? `<small> ${MOIS[m].slice(0, 3)}</small>` : ""}</b>`;
       if (st === "off") return `<div class="day off" aria-disabled="true">${num}<span class="offlab">OFF</span></div>`;
