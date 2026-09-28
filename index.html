@@ -397,7 +397,6 @@ function buildList(ids, servings) {
 }
 
 
-const EMELINE_LIST_TITLE = "Liste d'Emeline · venue du lundi 28 septembre";
 const EMELINE_LIST = [
   ["Viandes & poissons", "Blanc de poulet", "1,6 kg"],
   ["Viandes & poissons", "Filet mignon de porc", "800 g"],
@@ -461,7 +460,7 @@ const OFF_DAYS = [0, 3, 6];
 // Demi-journées déjà prises par ses autres clients (une venue d'une semaine = une demi-journée).
 const TAKEN = {
   "2026-09-22": { am: "Famille Martin", pm: "Sophie L." }, "2026-09-24": { am: "Claire D." }, "2026-09-25": { pm: "Julie R." },
-  "2026-09-29": { am: "Famille Martin" }, "2026-10-01": { am: "Sophie L.", pm: "Claire D." }, "2026-10-02": { pm: "Julie R." },
+  "2026-10-01": { am: "Sophie L.", pm: "Claire D." }, "2026-10-02": { pm: "Julie R." },
   "2026-10-06": { am: "Famille Martin", pm: "Sophie L." }, "2026-10-08": { am: "Claire D." }, "2026-10-13": { am: "Famille Martin" },
   "2026-10-15": { pm: "Julie R." }, "2026-10-20": { am: "Sophie L." }, "2026-10-22": { am: "Famille Martin", pm: "Claire D." },
   "2026-10-27": { pm: "Julie R." }, "2026-11-03": { am: "Famille Martin" }, "2026-11-05": { am: "Sophie L." },
@@ -478,6 +477,7 @@ const dayInfo = iso => { const dt = new Date(iso + "T12:00:00Z"); return { wd: d
 const dayName = iso => { const { wd, d, m } = dayInfo(iso); return `${JOURS[wd]} ${d === 1 ? "1er" : d} ${MOIS[m]}`; };
 const MOIS_AB = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const addDays = (iso, n) => new Date(new Date(iso + "T12:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+const mondayOf = iso => addDays(iso, -((dayInfo(iso).wd + 6) % 7));
 const frDay = iso => { const { d, m } = dayInfo(iso); return `${d === 1 ? "1er" : d} ${MOIS[m]}`; };
 const frShort = iso => { const { d, m } = dayInfo(iso); return `${d === 1 ? "1er" : d} ${MOIS_AB[m]}`; };
 
@@ -493,13 +493,13 @@ function newVenue(date) {
   };
 }
 // Les listes de courses préparées par Emeline, rangées par date de venue.
-const LISTS = { "2026-09-28": { title: EMELINE_LIST_TITLE, items: EMELINE_LIST } };
+const LISTS = { "2026-09-28": EMELINE_LIST };
 
 const initial = () => {
   const past = newVenue("2026-09-14");
   past.submitted = past.validated = past.done = true;
   (DATA.history || []).forEach((id, i) => past.picks.set(id, i < 3 ? 1 : 2));
-  const next = newVenue("2026-09-28");
+  const next = newVenue("2026-09-29");
   return {
     view: "client", client: "home", cook: "sessions", week: 1, servings: 4,
     venues: [past, next], current: next.id, ficheVisit: "", move: null,
@@ -511,14 +511,14 @@ let S = initial();
 // La venue affichée : celle qu'on prépare, sauf si on en a choisi une autre.
 const V = () => S.venues.find(v => v.id === S.current) || S.venues[S.venues.length - 1];
 const venueById = id => S.venues.find(v => v.id === id);
-const venueList = v => LISTS[v.date] || null;
+const venueList = v => v.date && LISTS[mondayOf(v.date)] ? { title: `Liste d'Emeline · ${venueTitle(v).toLowerCase()}`, items: LISTS[mondayOf(v.date)] } : null;
 const sortVenues = () => S.venues.sort((a, b) => (a.date || "9999-99-99").localeCompare(b.date || "9999-99-99"));
 const upcoming = () => S.venues.filter(v => !v.date || v.date >= TODAY);
 const pastVenues = () => S.venues.filter(v => v.date && v.date < TODAY);
 const defaultVenue = () => (upcoming()[0] || S.venues[S.venues.length - 1]).id;
 // Il y a toujours une venue à préparer : quand la dernière est passée, une nouvelle attend sa date.
 function ensureUpcoming() { if (!upcoming().length) { S.venues.push(newVenue(null)); sortVenues(); } }
-const weekStart = (v, i) => v.date ? addDays(v.date, i * 7) : null;
+const weekStart = (v, i) => v.date ? addDays(mondayOf(v.date), i * 7) : null;
 const venueLabel = v => v.date ? frShort(v.date) : "sans date";
 const venueTitle = v => v.date ? `Venue du ${dayName(v.date)}` : "Venue à réserver";
 const ficheLabel = v => {
@@ -531,7 +531,7 @@ const ficheLabel = v => {
 const isMine = iso => S.venues.some(v => v.date === iso);
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v12 · 25/09";
+const APP_VERSION = "v13 · 28/09";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -568,6 +568,9 @@ function restore() {
       const past = S.venues[0];
       S.venues = v.date && v.date <= past.date ? [v] : [past, v];
     }
+    // Emeline a décalé sa venue du lundi 28 au mardi 29 septembre.
+    const moved = S.venues.find(v => v.date === "2026-09-28" && !v.done);
+    if (moved) moved.date = "2026-09-29";
     sortVenues();
     ensureUpcoming();
     if (saved.client) S.client = saved.client;
