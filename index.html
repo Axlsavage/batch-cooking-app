@@ -397,7 +397,7 @@ function buildList(ids, servings) {
 }
 
 
-const EMELINE_LIST = [
+const LISTE_29_SEPT = [
   ["Viandes & poissons", "Blanc de poulet", "1,6 kg"],
   ["Viandes & poissons", "Filet mignon de porc", "800 g"],
   ["Viandes & poissons", "Bœuf haché 5 %", "700 g"],
@@ -441,8 +441,66 @@ const EMELINE_LIST = [
   ["Herbes & épices", "Muscade", ""],
   ["Herbes & épices", "Sel", ""],
   ["Herbes & épices", "Poivre", ""],
-].map(([aisle, name, qty]) => ({ aisle, name, q: null, unit: qty }));
-const EMELINE_AISLES = ["Viandes & poissons", "Légumes & fruits", "Produits frais", "Épicerie", "Féculents à prévoir", "Herbes & épices"];
+];
+
+// Venue du vendredi 16 octobre (semaines du 19 et du 26) — « Liste de courses Axelle 16 octobre.docx ».
+const LISTE_16_OCT = [
+  ["Viandes & poissons", "Blancs de poulet", "1,6 kg"],
+  ["Viandes & poissons", "Bœuf à bourguignon dégraissé", "800 g"],
+  ["Viandes & poissons", "Épaule de porc désossée", "900 g"],
+  ["Viandes & poissons", "Saumon frais sans arête", "600 g"],
+  ["Viandes & poissons", "Saumon fumé", "300 g"],
+  ["Légumes & aromates", "Carottes", "1,2 kg"],
+  ["Légumes & aromates", "Courgettes", "400 g"],
+  ["Légumes & aromates", "Champignons de Paris", "400 g"],
+  ["Légumes & aromates", "Patates douces", "800 g"],
+  ["Légumes & aromates", "Oignons", "450 g"],
+  ["Légumes & aromates", "Ail", "2 têtes"],
+  ["Légumes & aromates", "Citron jaune", "1"],
+  ["Légumes & aromates", "Citron vert", "1"],
+  ["Légumes surgelés nature possibles", "Butternut en cubes", "600 g"],
+  ["Légumes surgelés nature possibles", "Poireaux émincés", "500 g"],
+  ["Légumes surgelés nature possibles", "Brocolis en fleurettes", "600 g"],
+  ["Légumes surgelés nature possibles", "Poivrons en lanières", "400 g"],
+  ["Légumes surgelés nature possibles", "Haricots verts", "500 g"],
+  ["Crèmerie & œufs", "Skyr nature", "400 g"],
+  ["Crèmerie & œufs", "Fromage frais léger", "100 g"],
+  ["Crèmerie & œufs", "Parmesan râpé", "100 g"],
+  ["Crèmerie & œufs", "Mozzarella", "100 g"],
+  ["Crèmerie & œufs", "Œufs", "8"],
+  ["Conserves & épicerie", "Pois chiches égouttés (prévoir 2 boîtes selon le poids égoutté)", "400 g"],
+  ["Conserves & épicerie", "Tomates concassées", "400 g"],
+  ["Conserves & épicerie", "Coulis de tomate", "400 g"],
+  ["Conserves & épicerie", "Concentré de tomate", "40 g"],
+  ["Conserves & épicerie", "Riz complet cru (féculent du saumon, si besoin)", "250 g"],
+  ["Conserves & épicerie", "Riz pour le bœuf bourguignon (ou pâtes, ou pommes de terre vapeur)", "250 g"],
+  ["Conserves & épicerie", "Semoule (pour le tajine)", "250 g"],
+  ["Conserves & épicerie", "Boulgour", "250 g"],
+  ["Conserves & épicerie", "Wraps complets (poulet chawarma — ou boulgour à la place)", "8"],
+  ["Conserves & épicerie", "Farine", "80 g"],
+  ["Conserves & épicerie", "Fécule de maïs", "10 g"],
+  ["Conserves & épicerie", "Bouillon (volaille et/ou bœuf)", "1 L"],
+  ["Conserves & épicerie", "Sauce soja réduite en sel", "50 g"],
+  ["Conserves & épicerie", "Miel", "55 g"],
+  ["Conserves & épicerie", "Vinaigre de cidre", "15 g"],
+  ["Conserves & épicerie", "Moutarde", "10 g"],
+  ["Conserves & épicerie", "Huile d'olive", "85 g"],
+  ["Conserves & épicerie", "Graines de sésame", "10 g"],
+  ["Conserves & épicerie", "Gingembre en poudre", "20 g"],
+  ["Conserves & épicerie", "Abricots secs ou raisins (pour le tajine)", "100 g"],
+  ["Épices & assaisonnements", "Paprika doux", ""],
+  ["Épices & assaisonnements", "Paprika fumé", ""],
+  ["Épices & assaisonnements", "Cumin", ""],
+  ["Épices & assaisonnements", "Coriandre moulue", ""],
+  ["Épices & assaisonnements", "Curcuma", ""],
+  ["Épices & assaisonnements", "Cannelle", ""],
+  ["Épices & assaisonnements", "Thym", ""],
+  ["Épices & assaisonnements", "Laurier", ""],
+  ["Épices & assaisonnements", "Noix de muscade", ""],
+  ["Épices & assaisonnements", "Sel", ""],
+  ["Épices & assaisonnements", "Poivre", ""],
+];
+const toList = rows => rows.map(([aisle, name, qty]) => ({ aisle, name, q: null, unit: qty }));
 
 // ---------- Offre d'Emeline ----------
 // Tout ce qui n'est pas sucré compte dans le nombre de plats de la semaine.
@@ -504,7 +562,7 @@ function newVenue(date) {
   };
 }
 // Les listes de courses préparées par Emeline, rangées par date de venue.
-const LISTS = { "2026-09-28": EMELINE_LIST };
+const LISTS = { "2026-09-28": toList(LISTE_29_SEPT), "2026-10-19": toList(LISTE_16_OCT) };
 
 const initial = () => {
   const past = newVenue("2026-09-14");
@@ -548,7 +606,7 @@ const ficheLabel = v => {
 const isMine = iso => S.venues.some(v => v.date === iso);
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v14 · 12/10";
+const APP_VERSION = "v15 · 13/10";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
