@@ -609,7 +609,7 @@ const ficheLabel = v => {
 const isMine = iso => S.venues.some(v => v.date === iso);
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v16 · 13/10";
+const APP_VERSION = "v17 · 13/10";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -832,6 +832,18 @@ async function creerFoyer() {
   render();
 }
 
+async function rejoindreFoyer(code) {
+  if (!(await connecte())) { etat("souci"); return false; }
+  const { data, error } = await sb.rpc("rejoindre_foyer", { p_code: code });
+  if (error) { etat("souci"); return false; }
+  foyer = { id: data, code };
+  ecritJSON(FOYER_KEY, foyer);
+  await syncPull();
+  ecouter();
+  etat("lie");
+  return true;
+}
+
 async function initSync() {
   const code = new URLSearchParams(location.search).get("foyer");
   const stocke = litJSON(FOYER_KEY, null);
@@ -839,11 +851,11 @@ async function initSync() {
   if (!(await connecte())) { etat("attente"); return; }
   attente = litJSON(FILE_KEY, []);
   if (code) {
-    const { data, error } = await sb.rpc("rejoindre_foyer", { p_code: code });
-    if (error) { etat("souci"); return; }
-    foyer = { id: data, code };
-    ecritJSON(FOYER_KEY, foyer);
+    const ok = await rejoindreFoyer(code);
     history.replaceState(null, "", location.pathname); // le secret ne reste pas dans l'adresse
+    if (!ok) return;
+    await envoyer();
+    return;
   } else {
     foyer = stocke;
     const { error } = await sb.rpc("rejoindre_foyer", { p_code: foyer.code });
@@ -1055,7 +1067,11 @@ function clientView() {
   if (S.client === "partage") {
     body = `<div class="hello"><img class="logo logo-md" src="${LOGO}" alt=""><div><h1 class="h1" style="font-size:21px">Mes appareils</h1><p class="small muted" style="margin:2px 0 0">La même appli à deux</p></div></div>
       ${!foyer ? `<div class="card"><p style="margin:0 0 10px">Relie ce téléphone à celui de ton mari : vous verrez les mêmes plats et la même liste de courses, au même moment. Ce que l'un coche se raye chez l'autre.</p>
-          <button class="btn btn-primary btn-block" id="creer-foyer">Relier mes appareils</button></div>`
+          <button class="btn btn-primary btn-block" id="creer-foyer">Relier mes appareils</button></div>
+        <div class="card"><span class="h2">J'ai reçu un lien</span>
+          <p class="small muted" style="margin:2px 0 8px">Si l'autre t'a envoyé le lien par message, colle-le ici : cette appli rejoindra le foyer.</p>
+          <input class="note-in" id="code-colle" placeholder="Colle le lien reçu">
+          <button class="btn btn-secondary btn-block" id="rejoindre" style="margin-top:8px">Rejoindre</button></div>`
         : `<div class="card"><span class="h2">Ajouter un appareil</span>
           <p class="small muted" style="margin:2px 0 10px">Fais-lui scanner ce code avec l'appareil photo de son téléphone, ou envoie-lui le lien. Une seule fois : ensuite tout se fait tout seul.</p>
           <div id="qr" class="qr"><span class="small muted">Code en préparation…</span></div>
@@ -1105,6 +1121,16 @@ document.addEventListener("click", e => {
   if (t.dataset.ficheGo) { S.client = "fiche"; S.ficheVisit = t.dataset.ficheGo; return render(); }
   if (t.dataset.movev) { S.move = t.dataset.movev; S.client = "creneau"; return render(); }
   if (t.id === "move-cancel") { S.move = null; return render(); }
+  if (t.id === "rejoindre") {
+    const saisi = (document.getElementById("code-colle").value || "").trim();
+    const m = saisi.match(/foyer=([0-9a-f]{24,})/i) || saisi.match(/^([0-9a-f]{24,})$/i);
+    if (!m) return toast("Lien non reconnu", "Colle le lien entier, celui qui contient « ?foyer= ».");
+    rejoindreFoyer(m[1].toLowerCase()).then(ok => {
+      render();
+      toast(ok ? "Appareils reliés ✓" : "Lien refusé", ok ? "Tu vois maintenant la même chose que l'autre téléphone." : "Vérifie le lien, ou fais-le renvoyer.");
+    });
+    return;
+  }
   if (t.id === "creer-foyer") { creerFoyer(); return toast("Appareils reliés ✓", "Montre le code à l'autre téléphone pour qu'il rejoigne."); }
   if (t.id === "envoyer-lien") {
     const url = lienFoyer();
