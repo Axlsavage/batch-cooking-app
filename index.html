@@ -503,6 +503,62 @@ const LISTE_16_OCT = [
   ["Épices & assaisonnements", "Sel", ""],
   ["Épices & assaisonnements", "Poivre", ""],
 ];
+
+// Venue de novembre — « LISTE DE COURSES – BATCH COOKING AXELLE.docx ».
+const LISTE_NOV = [
+  ["Viandes et poissons", "Bœuf haché 5 % MG", "1 250 g"],
+  ["Viandes et poissons", "Épaule de porc à sauté", "800 g"],
+  ["Viandes et poissons", "Filets de poulet", "650 g"],
+  ["Viandes et poissons", "Saumon frais ou truite sans arête", "500 g"],
+  ["Viandes et poissons", "Cabillaud sans arête", "650 g"],
+  ["Fruits et légumes", "Oignons jaunes", "700 g"],
+  ["Fruits et légumes", "Échalote", "40 g"],
+  ["Fruits et légumes", "Ail frais (épluché)", "50 à 60 g"],
+  ["Fruits et légumes", "Carottes", "900 g"],
+  ["Fruits et légumes", "Brocoli en fleurettes (surgelé ok)", "1 100 g"],
+  ["Fruits et légumes", "Épinards frais (surgelé ok)", "550 g"],
+  ["Fruits et légumes", "Champignons bruns", "300 g"],
+  ["Fruits et légumes", "Citron jaune", "1"],
+  ["Fruits et légumes", "Citron vert", "1"],
+  ["Fruits et légumes", "Gingembre en poudre", "20 g"],
+  ["Herbes fraîches", "Persil plat", "40 g"],
+  ["Herbes fraîches", "Coriandre fraîche", "35 g"],
+  ["Herbes fraîches", "Menthe fraîche", "10 g"],
+  ["Herbes fraîches", "Aneth frais", "10 g"],
+  ["Crèmerie", "Fromage frais nature", "150 g"],
+  ["Crèmerie", "Cheddar râpé", "150 g"],
+  ["Crèmerie", "Yaourt grec nature ou skyr", "300 g"],
+  ["Crèmerie", "Œufs", "4"],
+  ["Crèmerie", "Lait de coco léger", "400 ml"],
+  ["Épicerie et conserves", "Pâte feuilletée pur beurre (230 à 250 g)", "1 rouleau"],
+  ["Épicerie et conserves", "Tomates concassées", "800 g"],
+  ["Épicerie et conserves", "Coulis de tomate", "700 g"],
+  ["Épicerie et conserves", "Concentré de tomates", "60 g"],
+  ["Épicerie et conserves", "Haricots rouges (poids égoutté)", "480 g"],
+  ["Épicerie et conserves", "Maïs (poids égoutté)", "280 g"],
+  ["Épicerie et conserves", "Chapelure panko", "100 g"],
+  ["Épicerie et conserves", "Farine", "50 g"],
+  ["Épicerie et conserves", "Tahini", "15 g"],
+  ["Épicerie et conserves", "Graines de sésame", "15 g"],
+  ["Épicerie et conserves", "Miel", "45 g"],
+  ["Épicerie et conserves", "Sauce soja", "70 ml"],
+  ["Épicerie et conserves", "Vinaigre de riz", "15 ml"],
+  ["Épicerie et conserves", "Maïzena", "18 g"],
+  ["Épicerie et conserves", "Bouillon", "200 ml"],
+  ["Épices et assaisonnements", "Cumin moulu", "14 g"],
+  ["Épices et assaisonnements", "Coriandre moulue", "4 g"],
+  ["Épices et assaisonnements", "Paprika doux", "15 g"],
+  ["Épices et assaisonnements", "Paprika fumé", "8 g"],
+  ["Épices et assaisonnements", "Curry", "10 g"],
+  ["Épices et assaisonnements", "Curcuma", "2 g"],
+  ["Épices et assaisonnements", "Origan séché", "2 g"],
+  ["Épices et assaisonnements", "Piment en poudre", "1 à 2 g"],
+  ["Épices et assaisonnements", "Harissa", "10 à 15 g"],
+  ["Épices et assaisonnements", "Ail en poudre", "3 g"],
+  ["Épices et assaisonnements", "Sel", "environ 25 g"],
+  ["Épices et assaisonnements", "Poivre", "environ 5 g"],
+  ["Épices et assaisonnements", "Huile d'olive", "environ 100 ml"],
+];
 const toList = rows => rows.map(([aisle, name, qty]) => ({ aisle, name, q: null, unit: qty }));
 
 // ---------- Offre d'Emeline ----------
@@ -566,6 +622,9 @@ function newVenue(date) {
 }
 // Les listes de courses préparées par Emeline, rangées par date de venue.
 const LISTS = { "2026-09-28": toList(LISTE_29_SEPT), "2026-10-19": toList(LISTE_16_OCT) };
+// La dernière liste reçue d'Emeline, pas encore rattachée à une date : elle s'affiche
+// d'office sur la prochaine venue à préparer, celle pour laquelle elle l'a faite.
+const LISTE_RECENTE = toList(LISTE_NOV);
 
 const initial = () => {
   const past = newVenue("2026-09-14");
@@ -585,7 +644,14 @@ const V = () => S.venues.find(v => v.id === S.current) || S.venues[S.venues.leng
 const venueById = id => S.venues.find(v => v.id === id);
 // Les listes sont rangées par première semaine cuisinée : la liste suit la venue
 // même si elle est déplacée de quelques jours.
-const venueList = v => v.date && LISTS[weekStart(v, 0)] ? { title: `Liste d'Emeline · ${venueTitle(v).toLowerCase()}`, items: LISTS[weekStart(v, 0)] } : null;
+const venueList = v => {
+  const titre = items => ({ title: `Liste d'Emeline · ${venueTitle(v).toLowerCase()}`, items });
+  const datee = v.date && LISTS[weekStart(v, 0)];
+  if (datee) return titre(datee);
+  // Pas de liste à cette date : la dernière reçue va à la prochaine venue à préparer.
+  if (LISTE_RECENTE && v.id === defaultVenue() && (!v.date || v.date >= TODAY)) return titre(LISTE_RECENTE);
+  return null;
+};
 const sortVenues = () => S.venues.sort((a, b) => (a.date || "9999-99-99").localeCompare(b.date || "9999-99-99"));
 const upcoming = () => S.venues.filter(v => !v.date || v.date >= TODAY);
 const pastVenues = () => S.venues.filter(v => v.date && v.date < TODAY);
@@ -609,7 +675,7 @@ const ficheLabel = v => {
 const isMine = iso => S.venues.some(v => v.date === iso);
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v17 · 13/10";
+const APP_VERSION = "v18 · 06/11";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
@@ -663,6 +729,9 @@ function restore() {
 }
 restore();
 ensureUpcoming();
+// Au lancement on se place toujours sur la prochaine venue à préparer, même sur un
+// téléphone où l'appli vient d'être installée.
+if (V().date && V().date < TODAY) S.current = defaultVenue();
 
 // ---------- Partage entre les appareils du foyer ----------
 // L'appli fonctionne seule, hors ligne, exactement comme avant. Si un foyer est
