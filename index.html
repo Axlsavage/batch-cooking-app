@@ -621,10 +621,15 @@ function newVenue(date) {
   };
 }
 // Les listes de courses préparées par Emeline, rangées par date de venue.
-const LISTS = { "2026-09-28": toList(LISTE_29_SEPT), "2026-10-19": toList(LISTE_16_OCT) };
-// La dernière liste reçue d'Emeline, pas encore rattachée à une date : elle s'affiche
-// d'office sur la prochaine venue à préparer, celle pour laquelle elle l'a faite.
-const LISTE_RECENTE = toList(LISTE_NOV);
+const LISTS = {
+  "2026-09-28": toList(LISTE_29_SEPT),
+  "2026-10-19": toList(LISTE_16_OCT),
+  "2026-11-09": toList(LISTE_NOV),
+};
+// Une liste reçue d'Emeline dont on ne connaît pas encore la date de venue se met ici :
+// elle s'affiche alors d'office sur la prochaine venue à préparer. Dès que la date est
+// connue, elle rejoint LISTS ci-dessus (clé = lundi de la première semaine cuisinée).
+const LISTE_RECENTE = null;
 
 const initial = () => {
   const past = newVenue("2026-09-14");
@@ -675,7 +680,7 @@ const ficheLabel = v => {
 const isMine = iso => S.venues.some(v => v.date === iso);
 
 const STORE_KEY = "ellepimptafood-v1";
-const APP_VERSION = "v18 · 06/11";
+const APP_VERSION = "v19 · 06/11";
 const STORAGE_OK = (() => {
   try { localStorage.setItem("epf-test", "1"); const ok = localStorage.getItem("epf-test") === "1"; localStorage.removeItem("epf-test"); return ok; }
   catch (e) { return false; }
